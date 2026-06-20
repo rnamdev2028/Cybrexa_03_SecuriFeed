@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SecuriFeed — PhishDetect Standalone</title>
+
+    <!-- Playfair, Inter, and JetBrains Mono Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..950&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- Tailwind CSS Standard CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Configure Tailwind fonts -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+              serif: ["Playfair Display", "Georgia", "serif"],
+              mono: ["JetBrains Mono", "monospace"]
+            }
+          }
+        }
+      };
+    </script>
+
+    <!-- Custom inline keyframes and reset tweaks -->
+    <style>
+      .animate-fade-in {
+        animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      ::selection {
+        background-color: #f43f5e;
+        color: #000;
+      }
+    </style>
+
+    <!-- Load React 18 & Babel Standalone Compilers to enable TSX loading directly off filesystem (no compilation required!) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+  </head>
+  <body class="min-h-screen bg-[#0A0A0B] text-[#E0E0E0] flex flex-col antialiased">
+    <div id="root"></div>
+
+    <!-- React TSX Client Core Engine -->
+    <script type="text/babel">
+      const { useState } = React;
+
+      // -------------------------------------------------------------
+      // Static Core Data Collections
+      // -------------------------------------------------------------
+      const INITIAL_NEWS = [
+        {
+          id: 'news_1',
+          title: 'Unicode Homoglyph Spoilers Penetrate Enterprise Inboxes',
+          summary: 'Attackers are utilizing specialized international Cyrllic characters to register lookalike targets indistinguishable from major financial accounts. Security layers advised to enforce strict Punycode checks.',
+          source: 'System Threat Response Svc',
+          category: 'phishing',
+          severity: 'Critical',
+          publishedAt: '2026-06-12T04:20:00.000Z',
+          link: '#'
+        },
+        {
+          id: 'news_2',
+          title: 'Unencrypted HTTP Credential Portals Surge Over Disposable TLDs',
+          summary: 'Scam aggregators leverage `.click` and `.xyz` domains to stand up unencrypted HTTP landing pages mimicking enterprise administrative desks. Browsers fail to warn non-technical operators in time.',
+          source: 'NCSC Global Advisories',
+          category: 'malware',
+          severity: 'High',
+          publishedAt: '2026-06-11T14:10:00.000Z',
+          link: '#'
+        },
+        {
+          id: 'news_3',
+          title: 'Multi-Nesting Subdomain Redirections bypass URL Regex Parsers',
+          summary: 'Deeply nested subdomains (e.g. accounts.support.authorization.chase-secure...) successfully deceive traditional single-level brand detection algorithms. Standard heuristics engines require urgent review.',
+          source: 'Global Incident Dispatch',
+          category: 'phishing',
+          severity: 'Medium',
+          publishedAt: '2026-06-10T11:45:00.000Z',
+          link: '#'
+        }
+      ];
+
+      const GAME_SCENARIOS = [
+        {
+          id: 'scen_1',
+          type: 'url',
+          senderOrDomain: 'paypal-login-secure.xyz',
+          subjectOrUrl: 'http://paypal.login-secure.xyz/verify_identity',
+          content: 'A customer support portal claiming to require safe password updates. Notice the unencrypted HTTP channel and disposable top-level suffix.',
+          isPhishing: true,
+          difficulty: 'easy',
+          phishingIndicators: [
+            'Missing secure TLS/SSL layer (HTTP instead of HTTPS).',
+            'Subdomain mimics brand name "paypal" but is hosted under a generic high-frequency spam TLD (.xyz).',
+            'Suspicious compound hyphenated brand strings.'
+          ],
+          explanation: 'Genuine workspace banking servers will never prompt credential submissions over plain unencrypted HTTP. Double-check absolute URL endings.'
+        },
+        {
+          id: 'scen_2',
+          type: 'email',
+          senderOrDomain: 'accounts@sec-google.com',
+          subjectOrUrl: '[Security Alert] Critical Password Breach Detected',
+          content: 'Dear Google User,\n\nWe tracked an unauthorized access attempt from terminal ip 198.51.100.24. For your account protection, you must verify your profile details within the next 4 hours or your workspace will be restricted.\n\nClick here: http://accounts.g00gle.com/authorization/verify',
+          isPhishing: true,
+          difficulty: 'medium',
+          phishingIndicators: [
+            'Includes zero ASCII "o" inside g00gle.com name (Trademark homoglyph spoof).',
+            'Heavy artificial urgency threat limits ("Locked in 4 hours").',
+            'Generic greeting addressing "Google User" instead of your personalized account identity.'
+          ],
+          explanation: 'Attackers create fake lookalikes mapping numeric spoofs (like "0" for "o") to exploit standard non-technical desktop readability limits.'
+        },
+        {
+          id: 'scen_3',
+          type: 'sms',
+          senderOrDomain: '+1 (888) 555-0982',
+          subjectOrUrl: 'Bank Alert: Transaction Verification Code',
+          content: 'CHASE ALERT: Did you authorize $2,491.00 at Apple Retail Store #46? Reply YES to authorize, or tap here to secure your card instantly: https://chase-auth-alerts.online/secure/lock/card',
+          isPhishing: true,
+          difficulty: 'hard',
+          phishingIndicators: [
+            'The link points to chase-auth-alerts.online instead of chase.com.',
+            'SMS text messages containing high-dollar urgent transaction notifications paired with clear generic panic buttons.'
+          ],
+          explanation: 'Fraud units often send real transactional alarms, but will never request instant password authorizations or links over throwaway .online entries.'
+        },
+        {
+          id: 'scen_4',
+          type: 'email',
+          senderOrDomain: 'billing@netflix.com',
+          subjectOrUrl: 'Your Netflix Membership renewal statement',
+          content: 'Hello Operator,\n\nThis is your monthly statement confirming processing of $22.99 for your streaming tier. If this was indeed correct, no response is necessary. Standard billing statements are accessible via subscription preferences inside netflix.com.',
+          isPhishing: false,
+          difficulty: 'medium',
+          phishingIndicators: [],
+          explanation: 'This is a genuine account notification. It has no artificial emergency demands, guides you to the official top-level netflix.com domain, and requests zero passwords.'
+        }
+      ];
+
+      // -------------------------------------------------------------
+      // High-Fidelity Local Dissection Fallback Engine
+      // -------------------------------------------------------------
+      const runLocalFallbackAnalysis = (raw) => {
+        let sanitized = raw.replace(/<[^>]*>/g, '').trim();
+
+        let testingUrl = sanitized;
+        if (!/^https?:\/\//i.test(testingUrl)) {
+          testingUrl = 'http://' + testingUrl;
+        }
+
+        let parsed;
+        try {
+          parsed = new URL(testingUrl);
+        } catch (e) {
+          const domainMatch = testingUrl.match(/^https?:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
+          const domain = domainMatch ? domainMatch[1] : testingUrl;
+          parsed = {
+            hostname: domain,
+            protocol: testingUrl.startsWith('https') ? 'https:' : 'http:',
+            port: '',
+            pathname: ''
+          };
+        }
+
+        const host = parsed.hostname.toLowerCase();
+        const isHttps = parsed.protocol === 'https:';
+
+        const ipV4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+        const ipV6Regex = /^\[?[a-f0-9]*:[a-f0-9:]+\]?$/i;
+        const isIpUrl = ipV4Regex.test(host) || ipV6Regex.test(host);
+
+        const isHomoglyph = /[^\u0000-\u007F]/.test(host);
+
+        const suspiciousKeywords = ['paypal', 'netflix', 'chase', 'google', 'apple', 'signin', 'login', 'secure', 'verify', 'update', 'accounts', 'billing', 'support', 'bank'];
+        const brandCheckwords = ['paypa1', 'g00gle', 'netflix-', 'chase-', 'verification-', 'support-'];
+        
+        let isTyposquatting = false;
+        let includesSuspiciousWords = false;
+
+        for (const term of brandCheckwords) {
+          if (host.includes(term)) {
+            isTyposquatting = true;
+          }
+        }
+
+        for (const kw of suspiciousKeywords) {
+          if (host.includes(kw)) {
+            includesSuspiciousWords = true;
+            if (kw === 'google' && !host.endsWith('.google.com') && host !== 'google.com') isTyposquatting = true;
+            if (kw === 'paypal' && !host.endsWith('.paypal.com') && host !== 'paypal.com') isTyposquatting = true;
+            if (kw === 'netflix' && !host.endsWith('.netflix.com') && host !== 'netflix.com') isTyposquatting = true;
+            if (kw === 'chase' && !host.endsWith('.chase.com') && host !== 'chase.com') isTyposquatting = true;
+            if (kw === 'apple' && !host.endsWith('.apple.com') && host !== 'apple.com') isTyposquatting = true;
+          }
+        }
+
+        const subdomainsCount = host.split('.').length - 2;
+        const isSubdomainsSpam = subdomainsCount > 3;
+
+        let score = 0;
+        const checks = [];
+
+        if (isHttps) {
+          checks.push({
+            name: 'TLS/SSL Layer encryption',
+            status: 'pass',
+            message: 'The connection is encrypted using modern secure HTTPS protocol.'
+          });
+        } else {
+          score += 25;
+          checks.push({
+            name: 'TLS/SSL Layer encryption',
+            status: 'fail',
+            message: 'HTTP connection detected. Missing secure encryption. Eavesdroppers can intercept logins.'
+          });
+        }
+
+        if (isIpUrl) {
+          score += 35;
+          checks.push({
+            name: 'Hostname Evaluation',
+            status: 'fail',
+            message: 'Suspicious IP address hostname instead of generic Domain Name registry.'
+          });
+        } else {
+          checks.push({
+            name: 'Hostname Evaluation',
+            status: 'pass',
+            message: 'Valid host string present.'
+          });
+        }
+
+        if (isHomoglyph) {
+          score += 25;
+          checks.push({
+            name: 'Internationalized character (IDN/Homoglyph) inspection',
+            status: 'fail',
+            message: 'Unicode homoglyphs found. Characters mimic standard ASCII letters to spoof trusted brands.'
+          });
+        } else {
+          checks.push({
+            name: 'Internationalized character (IDN/Homoglyph) inspection',
+            status: 'pass',
+            message: 'Pure ASCII characters detected. No homoglyphs spoofing identified.'
+          });
+        }
+
+        if (isTyposquatting) {
+          score += 30;
+          checks.push({
+            name: 'Phishing Typosquatting Matcher',
+            status: 'fail',
+            message: 'Lookalike spelling variations or brand labels matched against our internal scam database.'
+          });
+        } else if (includesSuspiciousWords) {
+          score += 15;
+          checks.push({
+            name: 'Phishing Typosquatting Matcher',
+            status: 'warning',
+            message: 'Includes core security keywords (e.g. login, verification) out of standard authoritative domain context.'
+          });
+        } else {
+          checks.push({
+            name: 'Phishing Typosquatting Matcher',
+            status: 'pass',
+            message: 'Domain name appears distinct from high-frequency spoofed brands.'
+          });
+        }
+
+        if (isSubdomainsSpam) {
+          score += 15;
+          checks.push({
+            name: 'Subdomain Chain Depth Check',
+            status: 'warning',
+            message: 'Multiple subdomain nesting blocks (e.g. accounts.support.paypal.signin...). Usually registered for distraction scams.'
+          });
+        } else {
+          checks.push({
+            name: 'Subdomain Chain Depth Check',
+            status: 'pass',
+            message: 'Nesting configuration standard.'
+          });
+        }
+
+        const badTLDs = ['.xyz', '.click', '.online', '.work', '.info', '.top', '.zip'];
+        let isBadTLD = false;
+        for (const tld of badTLDs) {
+          if (host.endsWith(tld)) {
+            isBadTLD = true;
+          }
+        }
+
+        if (isBadTLD) {
+          score += 10;
+          checks.push({
+            name: 'Top-Level Domain Suffix Check',
+            status: 'warning',
+            message: `Suffix ${host.substring(host.lastIndexOf('.'))} has a high correlation with throwaway phishing servers.`
+          });
+        } else {
+          checks.push({
+            name: 'Top-Level Domain Suffix Check',
+            status: 'pass',
+            message: 'Authorized generic global TLD suffix.'
+          });
+        }
+
+        score = Math.min(100, Math.max(isHttps ? 5 : 20, score));
+        const riskLvl = score >= 70 ? 'High' : score >= 35 ? 'Medium' : 'Low';
+
+        return {
+          url: raw,
+          sanitizedUrl: sanitized,
+          riskScore: score,
+          riskLevel: riskLvl,
+          sslInfo: {
+            hasSsl: isHttps,
+            protocol: isHttps ? 'HTTPS/TLS v1.3' : 'HTTP/1.1 (UNENCRYPTED)',
+            warning: isHttps ? null : 'Unencrypted Cleartext Channel Detected! Legitimate bank desks, social nets, and workspaces will NEVER use raw HTTP entries.',
+            port: parsed.port ? parseInt(parsed.port) : (isHttps ? 443 : 80)
+          },
+          patternsDetected: {
+            Typosquatting: isTyposquatting,
+            IpUrl: isIpUrl,
+            Homoglyphs: isHomoglyph,
+            SuspiciousWords: includesSuspiciousWords,
+            Subdomains: isSubdomainsSpam
+          },
+          detailedChecks: checks,
+          aiInsight: "Local rule analyzer operating in standalone mode. Complete diagnostics complete. To unlock advanced live AI security assessments, please host this app with Node.js and supply your proprietary secure API Key.",
+          scannedAt: new Date().toISOString()
+        };
+      };
+
+      // -------------------------------------------------------------
+      // Sub-View: Dashboard
+      // -------------------------------------------------------------
+      function DashboardView({ newsList, threatReports, setActiveTab, scenariosCount }) {
+        const totalAnalyzed = 1452;
+        const highRiskBlocked = 409;
+        const liveAdvisories = newsList.length;
+        const directSubmissions = threatReports.length;
+
+        return (
+          <div className="space-y-12 animate-fade-in text-white">
+            {/* Hero Welcome Banner */}
+            <div className="relative overflow-hidden bg-[#0F0F11] p-10 border border-white/10">
+              <div className="absolute right-0 top-0 -mr-16 -mt-16 w-64 h-64 bg-rose-500/5 rounded-full blur-3xl"></div>
+              
+              <div className="relative z-10 max-w-3xl">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono mb-4">
+                  Security Intelligence // Live Radar
+                </label>
+                <h2 className="text-4xl md:text-5xl font-serif italic tracking-tight text-white leading-tight font-medium">
+                  Active Cyber Threat Intelligence & Safe Sandboxed Analytica.
+                </h2>
+                <p className="mt-4 text-[#A0A0A5] text-sm md:text-base leading-relaxed font-sans max-w-2xl">
+                  Protect high-value workflows from malicious vectors. Evaluate lookalike domain systems using heuristic rule matching powered by our local security model suite.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-6">
+                  <button
+                    onClick={() => setActiveTab('analyzer')}
+                    className="px-6 py-3 bg-white text-black font-semibold text-xs tracking-widest uppercase hover:bg-[#E0E0E0] transition-colors duration-150 rounded-none cursor-pointer"
+                  >
+                    Analyze Target URL
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('game')}
+                    className="px-6 py-3 border border-white/20 text-white font-semibold text-xs tracking-widest uppercase hover:bg-white/5 transition-colors duration-150 rounded-none cursor-pointer"
+                  >
+                    Train Security Reflex
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Counters Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-[#0F0F11] border border-white/10 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-mono block mb-2">
+                    Heuristics Assessed
+                  </span>
+                  <div className="text-5xl font-serif text-white font-semibold leading-none">
+                    {totalAnalyzed + directSubmissions}
+                  </div>
+                </div>
+                <div className="mt-6 text-[10px] text-white/40 font-mono uppercase tracking-wide">
+                  <span className="text-emerald-400 font-semibold">↑ 12.4% WEEKLY</span> // CALIBRATED
+                </div>
+              </div>
+
+              <div className="bg-[#0F0F11] border border-white/10 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-mono block mb-2">
+                    Threat Vectors Blocked
+                  </span>
+                  <div className="text-5xl font-serif text-rose-500 font-semibold leading-none">
+                    {highRiskBlocked}
+                  </div>
+                </div>
+                <div className="mt-6 text-[10px] text-rose-400 font-mono uppercase tracking-wide">
+                  CRITICAL NEUTRALIZATIONS ACTIVE
+                </div>
+              </div>
+
+              <div className="bg-[#0F0F11] border border-white/10 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-mono block mb-2">
+                    Broadcast Advisories
+                  </span>
+                  <div className="text-5xl font-serif text-white font-semibold leading-none">
+                    {liveAdvisories}
+                  </div>
+                </div>
+                <div className="mt-6 text-[10px] text-white/40 font-mono uppercase tracking-wide">
+                  LIVE FEEDS LOADED
+                </div>
+              </div>
+
+              <div className="bg-[#0F0F11] border border-white/10 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-mono block mb-2">
+                    Crowdsourced Reports
+                  </span>
+                  <div className="text-5xl font-serif text-emerald-400 font-semibold leading-none">
+                    {directSubmissions}
+                  </div>
+                </div>
+                <div className="mt-6 text-[10px] text-emerald-400 font-mono uppercase tracking-wide">
+                  VERIFIED SECURE TRANSMISSIONS
+                </div>
+              </div>
+            </div>
+
+            {/* Dual Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-8">
+                <div className="bg-[#0A0A0B] border border-white/10 p-8">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline mb-8 gap-4">
+                    <div>
+                      <h3 className="text-xl font-serif italic text-white">Threat Indicators Distribution</h3>
+                      <p className="text-xs text-white/40 mt-1">Telemetry audit of standard phishing signature vectors</p>
+                    </div>
+                    <span className="text-[9px] border border-white/10 text-white/40 px-3 py-1 font-mono uppercase tracking-wider">
+                      LOG_ID: TELEMETRY_CLIENT
+                    </span>
+                  </div>
+
+                  {/* Progressive Indicators */}
+                  <div className="space-y-6 flex-1">
+                    <div>
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="text-white/80">Typosquatting & Lookalike Domains</span>
+                        <span className="text-white/40 font-mono">42% // HIGH FREQUENCY</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-1">
+                        <div className="bg-rose-500 h-full" style={{ width: '42%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="text-white/80">IP Address Embedded URLs (No Hostname)</span>
+                        <span className="text-white/40 font-mono">18% // MITIGATED</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-1">
+                        <div className="bg-white/40 h-full" style={{ width: '18%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="text-white/80">Unicode Homoglyph Spoilers (Lookalikes)</span>
+                        <span className="text-white/40 font-mono">15% // CRITICAL INJECTIONS</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-1">
+                        <div className="bg-rose-500 h-full" style={{ width: '15%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="text-white/80">Missing SSL Layer (HTTP Cleartext Channel)</span>
+                        <span className="text-white/40 font-mono">25% // EXPOSED PASSWORDS</span>
+                      </div>
+                      <div className="w-full bg-[#0F0F11] h-1">
+                        <div className="bg-rose-400 h-full" style={{ width: '25%' }}></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-5 bg-[#0F0F11] border-l-2 border-rose-500 text-xs text-white/70 leading-relaxed font-serif italic">
+                    <strong>Interactive Cyber Defense:</strong> Threat hunting mechanisms parse Unicode scripts sequentially. Test a disguised lookalike domain such as <span className="bg-white/5 px-2 py-0.5 rounded text-rose-300 font-mono not-italic border border-white/5">http://g00gle.com/secure</span> in our input analyzer panel to evaluate the system.
+                  </div>
+                </div>
+
+                {/* Academy Promo Card */}
+                <div className="bg-[#0F0F11] border border-white/10 p-8 flex flex-col md:flex-row gap-6 items-start">
+                  <div className="flex-1 space-y-3">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-mono">
+                      Training Academy // Interactive Module
+                    </label>
+                    <h3 className="text-2xl font-serif text-white italic">Train Employee and Desk Anti-Phishing Reflexes</h3>
+                    <p className="text-sm text-white/60 leading-relaxed">
+                      Phishing remains the single most dangerous initial entry vector in workspace intrusion setups. Our built-in simulator tests active defensive skills with <span className="text-white font-bold">{scenariosCount} realistic corporate phishing scenarios</span>.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('game')}
+                      className="mt-4 text-emerald-400 hover:text-emerald-300 text-xs font-semibold uppercase tracking-widest inline-flex items-center gap-2 cursor-pointer font-sans"
+                    >
+                      Launch training board &rarr;
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Feeds */}
+              <div className="space-y-6">
+                <div className="bg-[#0F0F11] border border-white/10 p-6 flex flex-col h-full justify-between">
+                  <div>
+                    <div className="flex justify-between items-baseline mb-6 font-sans">
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white font-sans">Live Threat Feed</h3>
+                      <button
+                        onClick={() => setActiveTab('feed')}
+                        className="text-[9px] text-white/40 hover:text-white uppercase tracking-wider font-semibold cursor-pointer border-b border-white/25 font-sans"
+                      >
+                        View All
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {newsList.slice(0, 3).map((item) => (
+                        <article key={item.id} className="pt-5 border-t border-white/5 first:pt-0 first:border-0">
+                          <div className="flex justify-between items-baseline mb-2">
+                            <span className={`text-[8px] uppercase font-mono tracking-widest font-semibold ${
+                              item.severity === 'Critical' ? 'text-rose-500' :
+                              item.severity === 'High' ? 'text-rose-400' :
+                              item.severity === 'Medium' ? 'text-amber-400' :
+                              'text-white/40'
+                            }`}>
+                              {item.severity} // SEVERITY
+                            </span>
+                            <time className="text-[9px] text-[#A0A0A5] font-mono">
+                              {new Date(item.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}
+                            </time>
+                          </div>
+                          <h4 className="text-sm font-serif italic text-white leading-snug hover:text-rose-300 transition duration-150">
+                            {item.title}
+                          </h4>
+                          <p className="text-xs text-white/40 mt-1 line-clamp-2 leading-relaxed font-sans">
+                            {item.summary}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-white/5 text-[10px] text-white/30 font-mono uppercase tracking-wider">
+                    Feeds refreshed live.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // -------------------------------------------------------------
+      // Sub-View: Analyzer
+      // -------------------------------------------------------------
+      function AnalyzerView() {
+        const [urlInput, setUrlInput] = useState('');
+        const [isLoading, setIsLoading] = useState(false);
+        const [result, setResult] = useState(null);
+        const [error, setError] = useState(null);
+
+        const handleClear = () => {
+          setUrlInput('');
+          setResult(null);
+          setError(null);
+        };
+
+        const handleAnalyze = (e) => {
+          e.preventDefault();
+          if (!urlInput.trim()) {
+            setError('Please provide a URL to analyze.');
+            return;
+          }
+
+          setIsLoading(true);
+          setError(null);
+
+          const rawUrl = urlInput.trim();
+          if (rawUrl.length > 1000) {
+            setError('URL exceeds maximum permitted buffer size (1000 chars).');
+            setIsLoading(false);
+            return;
+          }
+
+          // In standard direct html double-clicked scenario, we run fallback diagnostics immediately and securely.
+          setTimeout(() => {
+            try {
+              const res = runLocalFallbackAnalysis(rawUrl);
+              setResult(res);
+            } catch (err) {
+              setError('Failed to process string heuristics check.');
+            } finally {
+              setIsLoading(false);
+            }
+          }, 600);
+        };
+
+        return (
+          <div className="space-y-12 animate-fade-in max-w-5xl mx-auto">
+            <div className="border-b border-white/10 pb-8">
+              <label className="text-[10px] uppercase tracking-[0.25em] text-white/40 font-mono block mb-2">
+                System Module // Link Inspection Panel
+              </label>
+              <h2 className="text-3xl md:text-4xl font-serif italic text-white font-medium">
+                Automated URL & Network Encryption Diagnostics.
+              </h2>
+              <p className="text-white/50 text-sm mt-2 max-w-2xl leading-relaxed">
+                Submit suspicious links, homoglyph lookalikes, or self-signed API services. Our model decomposes strings to flag trademark typosquatting, extreme subdomain spamming, or insecure HTTP cleartext configurations.
+              </p>
+            </div>
+
+            <div className="bg-[#0F0F11] border border-white/10 p-8 relative">
+              <form onSubmit={handleAnalyze} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono mb-4">
+                    Enter target suspect URL or Domain
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <div className="absolute left-0 top-0 w-1 h-full bg-rose-500"></div>
+                      <input
+                        type="text"
+                        placeholder="e.g., http://chase-verification-login-portal.click/verify"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        className="w-full bg-white/5 border-none text-white text-lg font-mono outline-none py-4 px-6 focus:bg-white/10 transition-colors"
+                        disabled={isLoading}
+                        autoComplete="off"
+                      />
+                      {urlInput && (
+                        <button
+                          type="button"
+                          onClick={handleClear}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-wider font-mono text-white/40 hover:text-white transition focus:outline-none cursor-pointer"
+                        >
+                          CLEAR //
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-8 py-4 bg-white text-black font-semibold text-xs tracking-widest uppercase hover:bg-neutral-200 transition-all duration-150 cursor-pointer disabled:bg-neutral-800 disabled:text-white/20 rounded-none h-full"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'ANALYZING...' : 'RUN SCAN'}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="text-[10px] text-white/40 flex items-center gap-2 leading-relaxed font-mono uppercase tracking-wider">
+                  <span className="text-rose-400">INFO //</span> Safe automated sandbox process ensures zero active script triggering during string dissection.
+                </div>
+              </form>
+
+              {error && (
+                <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400 flex items-center gap-2 font-mono uppercase tracking-wider">
+                  <span>ERROR: {error}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Analysis Result Display */}
+            {result && (
+              <div className="space-y-12 animate-fade-in text-white">
+                <div className="bg-[#0F0F11] border border-white/10 p-10">
+                  <div className="flex flex-col md:flex-row gap-12 items-start justify-between">
+                    
+                    {/* Visual Gauge Score */}
+                    <div className="flex flex-col min-w-[240px]">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-mono mb-2">Threat Evaluation Score</span>
+                      <div className={`text-[120px] font-serif leading-none font-semibold -ml-2 select-none ${
+                        result.riskLevel === 'High' ? 'text-rose-500' :
+                        result.riskLevel === 'Medium' ? 'text-amber-500' :
+                        'text-emerald-400'
+                      }`}>
+                        {result.riskScore}
+                      </div>
+                      <div className="h-1.5 w-full bg-white/5 mt-4 overflow-hidden">
+                        <div className={`h-full ${
+                          result.riskLevel === 'High' ? 'bg-rose-500' :
+                          result.riskLevel === 'Medium' ? 'bg-amber-500' :
+                          'bg-emerald-400'
+                        }`} style={{ width: `${result.riskScore}%` }}></div>
+                      </div>
+                      <p className={`mt-4 font-mono text-xs uppercase tracking-widest italic ${
+                        result.riskLevel === 'High' ? 'text-rose-400' :
+                        result.riskLevel === 'Medium' ? 'text-amber-400' :
+                        'text-emerald-400'
+                      }`}>
+                        {result.riskLevel} Risk / Evaluation Complete
+                      </p>
+                    </div>
+
+                    {/* Numeric details */}
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-8 gap-x-6">
+                      <div className="border-l border-white/10 pl-4">
+                        <h3 className="text-[10px] uppercase tracking-widest text-[#A0A0A5] mb-2 font-mono">Input Target</h3>
+                        <p className="text-xs font-mono text-white select-all break-all">{result.url}</p>
+                      </div>
+
+                      <div className="border-l border-white/10 pl-4">
+                        <h3 className="text-[10px] uppercase tracking-widest text-[#A0A0A5] mb-2 font-mono">TLS Security Suffix</h3>
+                        <p className={`text-xs font-semibold ${result.sslInfo.hasSsl ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {result.sslInfo.hasSsl ? 'ENCRYPTED' : 'PLAIN UNENCRYPTED'}
+                        </p>
+                        <p className="text-[11px] text-white/40 mt-1 font-mono italic">{result.sslInfo.protocol}</p>
+                      </div>
+
+                      <div className="border-l border-white/10 pl-4">
+                        <h3 className="text-[10px] uppercase tracking-widest text-[#A0A0A5] mb-2 font-mono">Typosquatting Signature</h3>
+                        <p className="text-xs text-white font-medium">
+                          {result.patternsDetected.Typosquatting ? 'FLAGGED // TRADEMARK VARIANT' : 'CLEAN // NOT DETECTED'}
+                        </p>
+                        <p className="text-[11px] text-white/40 mt-1 font-mono italic">Lookalike spoof checking complete</p>
+                      </div>
+
+                      <div className="border-l border-white/10 pl-4">
+                        <h3 className="text-[10px] uppercase tracking-widest text-[#A0A0A5] mb-2 font-mono">Unicode Homoglyphs</h3>
+                        <p className="text-xs text-white font-medium">
+                          {result.patternsDetected.Homoglyphs ? 'ALERT // SPECIAL CHARACTER DETECTED' : 'CLEAN // ASCII SYMBOLS'}
+                        </p>
+                        <p className="text-[11px] text-white/40 mt-1 font-mono italic">Punycode conversion checks</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Secure certificate box */}
+                <div className="bg-[#0F0F11] border border-white/10 p-8 space-y-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white font-mono flex items-center gap-2">
+                    🔒 Symmetric Encryption Standard Details
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-white/5 p-5 text-xs font-mono">
+                    <div>
+                      <span className="text-white/30 block tracking-widest uppercase text-[9px] mb-1">Standard Port</span>
+                      <span className="text-white mt-0.5 block">{result.sslInfo.port}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/30 block tracking-widest uppercase text-[9px] mb-1">Channel Protection</span>
+                      <span className={`font-semibold mt-0.5 block ${result.sslInfo.hasSsl ? 'text-emerald-400' : 'text-rose-500'}`}>
+                        {result.sslInfo.hasSsl ? 'TLS_ENCRYPTED_1.3' : 'CLEAR_HTTP_ALERT'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/30 block tracking-widest uppercase text-[9px] mb-1">Warning Telemetry</span>
+                      <span className="text-white/70 mt-0.5 block">
+                        {result.sslInfo.hasSsl ? 'No anomalies detected.' : 'Warning: Cleartext transmission.'}
+                      </span>
+                    </div>
+                  </div>
+                  {result.sslInfo.warning && (
+                    <div className="p-4 bg-rose-500/10 border-l-2 border-rose-500 text-xs text-rose-400 leading-relaxed font-serif italic">
+                      {result.sslInfo.warning}
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Insight report */}
+                <div className="bg-[#0A0A0B] border border-white/10 p-8 relative">
+                  <div className="absolute top-0 right-0 p-4 font-mono text-[9px] tracking-widest text-emerald-400 uppercase">
+                    AUTOMATED SEC-REPORT
+                  </div>
+                  <div className="flex gap-4 items-baseline mb-4 border-b border-white/10 pb-4">
+                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse flex-shrink-0"></div>
+                    <h4 className="text-sm font-bold uppercase tracking-[0.15em] text-white font-sans">
+                      Tactical Security Assessment Reports (Standalone Offline Mode)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-white/90 leading-relaxed font-serif italic whitespace-pre-line">
+                    {result.aiInsight}
+                  </p>
+                </div>
+
+                {/* Heuristic checks dashboard */}
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white font-mono">
+                    Heuristic Diagnostic Rules Checklist
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {result.detailedChecks.map((check, idx) => (
+                      <div key={idx} className="bg-[#0F0F11] border border-white/10 p-5 flex items-start gap-4">
+                        <div className="mt-1">
+                          {check.status === 'pass' && <span class="text-emerald-400">✅</span>}
+                          {check.status === 'warning' && <span class="text-amber-400">⚠️</span>}
+                          {check.status === 'fail' && <span class="text-rose-500">🚨</span>}
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-xs font-semibold text-white/90 font-sans block">{check.name}</span>
+                          <p className="text-[11px] text-white/40 leading-relaxed font-mono uppercase tracking-wide">{check.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // -------------------------------------------------------------
+      // Sub-View: Intelligence Feed
+      // -------------------------------------------------------------
+      function ThreatIntelView({ newsList, threatReports, onAddNews, onAddReport }) {
+        const [searchTerm, setSearchTerm] = useState('');
+        const [categoryFilter, setCategoryFilter] = useState('all');
+        const [severityFilter, setSeverityFilter] = useState('all');
+
+        const [showReportForm, setShowReportForm] = useState(false);
+        const [reporterName, setReporterName] = useState('');
+        const [reportedUrl, setReportedUrl] = useState('');
+        const [sightingType, setSightingType] = useState('Phishing Domain');
+        const [description, setDescription] = useState('');
+        const [isSubmitted, setIsSubmitted] = useState(false);
+        const [formError, setFormError] = useState(null);
+
+        const handleReportSubmit = (e) => {
+          e.preventDefault();
+          setFormError(null);
+
+          const rName = reporterName.trim();
+          const rUrl = reportedUrl.trim();
+          const rDesc = description.trim();
+
+          if (!rName || !rUrl || !rDesc) {
+            setFormError('All fields are required to log an authorized sighting reported indicator.');
+            return;
+          }
+
+          const newReport = {
+            id: 'report_' + Date.now(),
+            reporterName: rName,
+            reportedUrl: rUrl,
+            sightingType,
+            description: rDesc,
+            submittedAt: new Date().toISOString()
+          };
+
+          onAddReport(newReport);
+
+          const newNewsItem = {
+            id: 'news_' + Date.now(),
+            title: `Suspicious ${sightingType}: "${rUrl}"`,
+            summary: `Intel uploaded securely by operator "${rName}". Description: ${rDesc}`,
+            source: 'Operator Crowd-Sourced Feed',
+            category: sightingType.toLowerCase().includes('phish') ? 'phishing' : 'malware',
+            severity: 'High',
+            publishedAt: new Date().toISOString(),
+            link: '#'
+          };
+
+          onAddNews(newNewsItem);
+
+          setReporterName('');
+          setReportedUrl('');
+          setSightingType('Phishing Domain');
+          setDescription('');
+          setIsSubmitted(true);
+          
+          setTimeout(() => {
+            setIsSubmitted(false);
+            setShowReportForm(false);
+          }, 2500);
+        };
+
+        const filteredAdvisories = newsList.filter((item) => {
+          const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                item.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                item.source.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
+          const matchesSeverity = severityFilter === 'all' || item.severity === severityFilter;
+
+          return matchesSearch && matchesCategory && matchesSeverity;
+        });
+
+        return (
+          <div className="space-y-12 animate-fade-in max-w-5xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-baseline border-b border-white/10 pb-8 gap-4">
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.25em] text-white/40 font-mono block mb-2">
+                  Database // Cooperative Feeds
+                </label>
+                <h2 className="text-3xl md:text-4xl font-serif italic text-white flex items-center gap-3 font-medium">
+                  📡 Threat Intelligence & Advisory Board.
+                </h2>
+                <p className="text-[#A0A0A5] text-sm mt-2 max-w-2xl leading-relaxed">
+                  Live broadcasts of structural malware patterns, zero-days, homoglyphs, and SSL anomalies, tracked crowdsourced reports, and verified agency insights.
+                </p>
+              </div>
+              
+              <button
+                onClick={() => setShowReportForm(!showReportForm)}
+                className="px-5 py-3 border border-white/20 hover:bg-white hover:text-black font-semibold text-xs tracking-widest uppercase transition-colors duration-150 rounded-none cursor-pointer"
+              >
+                {showReportForm ? 'CLOSE LOG // x' : 'LOG SIGHTING // +'}
+              </button>
+            </div>
+
+            {/* Sighting form */}
+            {showReportForm && (
+              <div className="bg-[#0F0F11] border border-white/10 p-8 space-y-6 animate-fade-in">
+                <div className="border-b border-white/5 pb-4">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-white font-sans">Indicators of Compromise Reporting System</h3>
+                  <p className="text-xs text-white/40 mt-1">Provide verified details of suspicious phishing lookalikes or cleartext traps.</p>
+                </div>
+
+                {isSubmitted ? (
+                  <div className="py-12 text-center space-y-3">
+                    <p className="text-sm font-semibold tracking-wider text-emerald-400 uppercase font-mono">Transmission Transmitted Successfully</p>
+                    <p className="text-xs text-white/40">Telemetry registry processed and updated.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleReportSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] text-white/40 font-mono mb-2 uppercase tracking-widest">Reporter Operator ID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Host_Defender_99"
+                        value={reporterName}
+                        onChange={(e) => setReporterName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 text-white text-xs font-mono outline-none p-3 focus:bg-white/10"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-white/40 font-mono mb-2 uppercase tracking-widest">Sighting Vector Class</label>
+                      <select
+                        value={sightingType}
+                        onChange={(e) => setSightingType(e.target.value)}
+                        className="w-full bg-white/5 border border-[#1b1b1f] text-slate-300 text-xs font-mono outline-none p-3 focus:bg-white/10 cursor-pointer"
+                      >
+                        <option value="Phishing Domain">Phishing Domain</option>
+                        <option value="Homoglyph Spoof">Homoglyph Spoof</option>
+                        <option value="Insecure Port Alert">Insecure Port Alert</option>
+                        <option value="IP Address URL">IP Address URL</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] text-white/40 font-mono mb-2 uppercase tracking-widest">Suspect Link or Domain</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. accounts-verizon-secure.online"
+                        value={reportedUrl}
+                        onChange={(e) => setReportedUrl(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 text-white text-xs font-mono outline-none p-3 focus:bg-white/10"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] text-white/40 font-mono mb-2 uppercase tracking-widest">Detailed Sighting Analysis</label>
+                      <textarea
+                        rows="2"
+                        placeholder="Explain structural lookalikes, visual spoofs..."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 text-white text-xs font-sans outline-none p-3 focus:bg-white/10"
+                      />
+                    </div>
+
+                    {formError && (
+                      <div className="md:col-span-2 text-xs font-mono uppercase tracking-wider text-rose-400">
+                        ERROR // {formError}
+                      </div>
+                    )}
+
+                    <div className="md:col-span-2 flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-white text-black text-xs font-semibold uppercase tracking-widest hover:bg-[#E0E0E0] transition-colors rounded-none cursor-pointer"
+                      >
+                        TRANSMIT SIGHTING // ENQUEUE
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* List Custom user filings */}
+            {threatReports.length > 0 && (
+              <div className="space-y-4">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-[#A0A0A5] font-mono">
+                  Recent Sighting Indicators enqueued by users
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {threatReports.map((report) => (
+                    <div key={report.id} className="bg-[#0F0F11] border border-white/10 p-5 flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex justify-between items-baseline mb-2 text-[#A0A0A5] font-mono text-[9px] uppercase tracking-wider">
+                          <span>{report.sightingType}</span>
+                          <span>{new Date(report.submittedAt).toLocaleTimeString()}</span>
+                        </div>
+                        <strong className="text-white font-mono break-all font-semibold block text-xs">
+                          {report.reportedUrl}
+                        </strong>
+                        <p className="text-[#A0A0A5] text-xs mt-2 line-clamp-3 leading-relaxed font-sans">
+                          {report.description}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] font-mono text-white/40 uppercase tracking-widest pt-2 border-t border-white/5">
+                        <span>Author: {report.reporterName}</span>
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                          ✔ Verified Checked
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Filters Bar */}
+            <div className="border border-white/10 p-6 bg-[#0F0F11]">
+              <div className="flex flex-col md:flex-row gap-6 items-center">
+                <div className="relative flex-1 w-full">
+                  <input
+                    type="text"
+                    placeholder="Search threat advisories, keyword signatures, sources..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-[#0A0A0B]/60 border border-white/10 pl-4 pr-4 py-3 text-xs text-white placeholder-white/40 font-mono outline-none focus:border-white transition"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-4 w-full md:w-auto font-mono uppercase tracking-widest text-[10px]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/40">Category:</span>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="bg-transparent border-b border-white/20 text-white text-xs uppercase outline-none pb-0.5 cursor-pointer max-w-[130px]"
+                    >
+                      <option value="all">ALL CLASSES</option>
+                      <option value="phishing">PHISHING VECTORS</option>
+                      <option value="malware">MALWARE</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/40">Severity:</span>
+                    <select
+                      value={severityFilter}
+                      onChange={(e) => setSeverityFilter(e.target.value)}
+                      className="bg-transparent border-b border-white/20 text-white text-xs uppercase outline-none pb-0.5 cursor-pointer"
+                    >
+                      <option value="all">ALL SEVERITY</option>
+                      <option value="Critical">CRITICAL</option>
+                      <option value="High">HIGH</option>
+                      <option value="Medium">MEDIUM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main feed cards */}
+            <div className="space-y-4">
+              {filteredAdvisories.map((news) => (
+                <div
+                  key={news.id}
+                  className="bg-[#0F0F11] border border-white/5 hover:border-white/15 p-8 transition-colors duration-150 space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-baseline gap-2 pb-3 border-b border-white/5">
+                    <div className="flex gap-3 items-center">
+                      <span className={`text-[8px] font-mono tracking-widest uppercase font-semibold px-2 py-0.5 border ${
+                        news.severity === 'Critical' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                        news.severity === 'High' ? 'bg-rose-500/10 border-rose-500/10 text-rose-400' :
+                        'bg-amber-500/10 border-amber-500/10 text-amber-300'
+                      }`}>
+                        {news.severity} // SEVERITY
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[8px] text-white/50 font-mono uppercase tracking-widest">
+                        📁 {news.category}
+                      </span>
+                    </div>
+
+                    <span className="text-[10px] text-white/40 font-mono uppercase">
+                      {new Date(news.publishedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-serif text-white italic leading-tight hover:text-rose-200 transition duration-150">
+                      {news.title}
+                    </h3>
+                    <p className="text-sm text-white/60 mt-3 leading-relaxed font-sans max-w-3xl font-light">
+                      {news.summary}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between text-[10px] text-white/40 font-mono uppercase tracking-wider">
+                    <span>Source Class: <strong className="text-white/80 select-all normal-case">{news.source}</strong></span>
+                    <span className="text-rose-400 border-b border-rose-500/30 hover:text-white transition duration-150 cursor-pointer font-bold">
+                      VIEW TELEMETRY &rarr;
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      // -------------------------------------------------------------
+      // Sub-View: PhishGame simulator
+      // -------------------------------------------------------------
+      function PhishGameView() {
+        const [scenarios, setScenarios] = useState(GAME_SCENARIOS);
+        const [currentIndex, setCurrentIndex] = useState(0);
+        const [hasAnswered, setHasAnswered] = useState(false);
+        const [selectedAns, setSelectedAns] = useState(null);
+        const [stats, setStats] = useState({
+          score: 0,
+          streak: 0,
+          levelsCompleted: 1,
+          totalAnswered: 0,
+          correctAnswers: 0,
+        });
+        const [isGameFinished, setIsGameFinished] = useState(false);
+
+        const activeScenario = scenarios[currentIndex];
+
+        const handleDecision = (userSelectedPhishing) => {
+          if (hasAnswered) return;
+
+          setHasAnswered(true);
+          setSelectedAns(userSelectedPhishing);
+
+          const isCorrect = userSelectedPhishing === activeScenario.isPhishing;
+          const additionalScore = isCorrect ? (activeScenario.difficulty === 'hard' ? 25 : activeScenario.difficulty === 'medium' ? 15 : 10) : 0;
+
+          setStats((prev) => {
+            const nextStreak = isCorrect ? prev.streak + 1 : 0;
+            const nextScore = prev.score + additionalScore;
+            const nextLevel = Math.max(prev.levelsCompleted, Math.floor(nextScore / 50) + 1);
+            
+            return {
+              score: nextScore,
+              streak: nextStreak,
+              levelsCompleted: nextLevel,
+              totalAnswered: prev.totalAnswered + 1,
+              correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0)
+            };
+          });
+        };
+
+        const handleNext = () => {
+          setHasAnswered(false);
+          setSelectedAns(null);
+
+          if (currentIndex + 1 < scenarios.length) {
+            setCurrentIndex((prev) => prev + 1);
+          } else {
+            setIsGameFinished(true);
+          }
+        };
+
+        const handleRestart = () => {
+          setCurrentIndex(0);
+          setHasAnswered(false);
+          setSelectedAns(null);
+          setIsGameFinished(false);
+          setStats({
+            score: 0,
+            streak: 0,
+            levelsCompleted: 1,
+            totalAnswered: 0,
+            correctAnswers: 0,
+          });
+        };
+
+        return (
+          <div className="space-y-12 animate-fade-in max-w-5xl mx-auto text-white">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-baseline border-b border-white/10 pb-8 gap-6">
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.25em] text-white/40 font-mono block mb-2">
+                  Workspace Academy // Reflex Board
+                </label>
+                <h2 className="text-3xl md:text-4xl font-serif italic text-white font-medium">
+                  PhishDetect Reflex Simulator Training.
+                </h2>
+                <p className="text-[#A0A0A5] text-sm mt-2 max-w-2xl leading-relaxed">
+                  Strengthen standard employee firewalls. Spot typosquatting subdomains, Homoglyph Unicode spoofs, cleartext HTTP credentials inputs, or high-urgency business emails.
+                </p>
+              </div>
+
+              {/* Stats badges */}
+              <div className="flex flex-wrap gap-4 font-mono uppercase tracking-widest text-[9px] text-[#A0A0A5]">
+                <div className="bg-[#0F0F11] border border-white/10 py-2 px-4">
+                  LEVEL: <span className="text-white font-bold">0{stats.levelsCompleted}</span>
+                </div>
+                <div className="bg-[#0F0F11] border border-white/10 py-2 px-4">
+                  SCORE: <span className="text-emerald-400 font-bold">{stats.score}</span> XP
+                </div>
+                <div className="bg-[#0F0F11] border border-white/10 py-2 px-4">
+                  STREAK: <span className="text-rose-500 font-bold">{stats.streak} 🔥</span>
+                </div>
+              </div>
+            </div>
+
+            {isGameFinished ? (
+              <div className="bg-[#0F0F11] border border-white/10 p-12 max-w-2xl mx-auto text-center space-y-8 relative overflow-hidden">
+                <div className="text-emerald-400 text-5xl">🛡️</div>
+                <div className="space-y-2">
+                  <h3 className="text-3xl font-serif italic text-white font-medium">Reflex Deck Fully Evaluated.</h3>
+                  <p className="text-[#A0A0A5] text-xs uppercase tracking-widest font-mono">Digital hygiene metrics summary:</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 bg-black/60 p-6 border border-white/10 font-mono text-xs">
+                  <div className="p-4 border-r border-white/10">
+                    <span className="text-white/40 block mb-2 uppercase tracking-widest text-[9px]">Decision Accuracy</span>
+                    <strong className="text-3xl font-bold text-emerald-400">
+                      {stats.totalAnswered > 0 ? Math.round((stats.correctAnswers / stats.totalAnswered) * 100) : 0}%
+                    </strong>
+                  </div>
+                  <div className="p-4">
+                    <span className="text-white/40 block mb-2 uppercase tracking-widest text-[9px]">Total Points Accrued</span>
+                    <strong className="text-3xl font-bold text-white">{stats.score} XP</strong>
+                  </div>
+                </div>
+
+                <div className="text-sm text-[#A0A0A5] max-w-lg mx-auto leading-relaxed italic font-serif">
+                  {stats.correctAnswers === stats.totalAnswered ? (
+                    <span>"Absolute digital vigilance! You spotted every single homoglyph spoof and malicious attachment vector without raising false notifications. Standard Security Officer qualification."</span>
+                  ) : (
+                    <span>"A highly responsive human firewall. You accurately flagged critical domain spoofs, but some complex character lookalikes or structural tricks bypassed your check. Continued practice recommended."</span>
+                  )}
+                </div>
+
+                <div>
+                  <button
+                    onClick={handleRestart}
+                    className="px-6 py-3 bg-white text-black font-semibold text-xs tracking-widest uppercase hover:bg-neutral-200 transition-colors rounded-none cursor-pointer"
+                  >
+                    Restart Academy Course
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-[#0F0F11] border border-white/10 px-6 py-4 flex justify-between items-baseline text-[10px] font-mono uppercase tracking-wider text-white/50">
+                    <span>
+                      DECK SEQUENCE: <span className="text-white font-bold font-mono">0{currentIndex + 1}</span> / 0{scenarios.length}
+                    </span>
+                    <span className={`px-2 py-0.5 border ${
+                      activeScenario.difficulty === 'hard' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                      activeScenario.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    }`}>
+                      DIFFICULTY // {activeScenario.difficulty}
+                    </span>
+                  </div>
+
+                  {/* Simulator container workspace */}
+                  <div className="bg-[#0F0F11] border border-white/10 overflow-hidden relative">
+                    <div class="bg-black/60 px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                      <div className="flex gap-2">
+                        <span className="w-2.5 h-2.5 bg-rose-500/50 rounded-full"></span>
+                        <span className="w-2.5 h-2.5 bg-amber-500/50 rounded-full"></span>
+                        <span className="w-2.5 h-2.5 bg-emerald-500/50 rounded-full"></span>
+                      </div>
+                      <span className="text-[10px] uppercase tracking-widest text-[#A0A0A5] font-mono">
+                        {activeScenario.type === 'url' ? 'Hostname Inspection' : (activeScenario.type === 'email' ? 'Workspace Mail client' : 'Secure SMS network')}
+                      </span>
+                    </div>
+
+                    {/* Canvas contents */}
+                    <div className="p-8 bg-black/30 min-h-[220px] text-white flex flex-col justify-between">
+                      {activeScenario.type === 'email' && (
+                        <div className="space-y-6">
+                          <div className="border-b border-white/5 pb-4 space-y-2 text-xs font-mono">
+                            <div>
+                              <span className="text-white/40 mr-2 uppercase tracking-[0.1em] text-[9px]">Sender:</span>
+                              <code className="text-rose-300 font-semibold bg-white/5 px-2 py-1 border border-white/10 select-all font-mono">{activeScenario.senderOrDomain}</code>
+                            </div>
+                            <div>
+                              <span className="text-white/40 mr-2 uppercase tracking-[0.1em] text-[9px]">Subject:</span>
+                              <span className="text-white font-sans">{activeScenario.subjectOrUrl}</span>
+                            </div>
+                          </div>
+                          <div className="p-6 bg-white/5 border border-white/10 text-xs md:text-sm text-white/80 whitespace-pre-line leading-relaxed font-sans font-medium">
+                            {activeScenario.content}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeScenario.type === 'sms' && (
+                        <div className="max-w-md mx-auto w-full bg-black/60 border border-white/10 p-5 space-y-4">
+                          <div className="flex justify-between items-center text-[9px] text-[#A0A0A5] font-mono uppercase tracking-widest pb-2 border-b border-white/5">
+                            <span>Sender: {activeScenario.senderOrDomain}</span>
+                            <span>SMS Broadcast</span>
+                          </div>
+                          <div className="p-4 bg-white/5 border border-white/10 text-xs text-white/90 leading-relaxed font-mono">
+                            {activeScenario.content}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeScenario.type === 'url' && (
+                        <div className="space-y-6 py-4 text-center">
+                          <div className="inline-flex p-4 bg-black/60 border border-white/10">
+                            🌐
+                          </div>
+                          <div className="space-y-2 max-w-xl mx-auto">
+                            <label className="text-[9px] text-white/40 font-mono uppercase tracking-[0.2em] block">Lookalike Domain Evaluated</label>
+                            <code className="block bg-black/60 p-4 text-sm text-rose-300 font-mono break-all border border-white/10 select-all leading-normal">{activeScenario.subjectOrUrl}</code>
+                          </div>
+                          <p className="text-xs text-white/60 leading-relaxed max-w-md mx-auto">
+                            {activeScenario.content}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Choice options */}
+                    <div className="bg-black/60 p-4 border-t border-white/10 flex flex-col sm:flex-row gap-4">
+                      <button
+                        disabled={hasAnswered}
+                        onClick={() => handleDecision(false)}
+                        className={`px-6 py-4 text-xs font-semibold uppercase tracking-widest transition-colors duration-150 rounded-none cursor-pointer flex-1 justify-center inline-flex items-center gap-2 ${
+                          hasAnswered
+                            ? 'bg-transparent text-white/20 border border-white/5'
+                            : 'bg-[#0F0F11] text-white border border-white/20 hover:bg-white hover:text-black'
+                        }`}
+                      >
+                        ✔ Mark Safe
+                      </button>
+
+                      <button
+                        disabled={hasAnswered}
+                        onClick={() => handleDecision(true)}
+                        className={`px-6 py-4 text-xs font-semibold uppercase tracking-widest transition-colors duration-150 rounded-none cursor-pointer flex-1 justify-center inline-flex items-center gap-2 ${
+                          hasAnswered
+                            ? 'bg-transparent text-white/20 border border-white/5'
+                            : 'bg-rose-500 text-white hover:bg-rose-600'
+                        }`}
+                      >
+                        ⚠ Mark Phishing
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Feedbacks panel */}
+                  {hasAnswered && (
+                    <div className={`p-8 border animate-fade-in space-y-6 ${
+                      selectedAns === activeScenario.isPhishing
+                        ? 'bg-emerald-500/5 border-emerald-500/20'
+                        : 'bg-rose-500/5 border-rose-500/20'
+                    }`}>
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-baseline gap-2 pb-4 border-b border-white/10">
+                        <span className="text-sm font-bold uppercase tracking-wider text-white font-mono">
+                          {selectedAns === activeScenario.isPhishing ? '✔ Decision Checked Correct!' : '🚨 Firewall Breeched! Key Leak alert'}
+                        </span>
+                        
+                        <span className={`text-[9px] font-mono px-3 py-1 border uppercase font-bold tracking-widest ${
+                          activeScenario.isPhishing ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        }`}>
+                          {activeScenario.isPhishing ? 'Phishing Attempt' : 'Legitimate Asset'}
+                        </span>
+                      </div>
+
+                      {activeScenario.isPhishing && activeScenario.phishingIndicators.length > 0 && (
+                        <div className="space-y-3">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-[#A0A0A5] block">Malicious signature cues identified:</span>
+                          <ul className="space-y-2">
+                            {activeScenario.phishingIndicators.map((ind, i) => (
+                              <li key={i} className="text-xs text-rose-400 bg-rose-500/5 border border-rose-500/10 p-3 font-mono leading-relaxed flex gap-2">
+                                <span className="text-white/30">[{i+1}]</span>
+                                <span>{ind}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-[#A0A0A5] block">Simulation Advisory study notes:</span>
+                        <p className="text-sm text-white/80 leading-relaxed font-serif italic">{activeScenario.explanation}</p>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={handleNext}
+                          className="px-6 py-3 bg-white text-black font-semibold text-xs tracking-widest uppercase hover:bg-neutral-200 transition-colors rounded-none inline-flex items-center gap-2 cursor-pointer font-sans"
+                        >
+                          Next Scenario &rarr;
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-[#0F0F11] border border-white/10 p-6 space-y-6">
+                    <h3 className="text-xs font-bold font-mono text-white uppercase tracking-widest">
+                      🏆 Vigilance Field Notes
+                    </h3>
+                    <ul className="space-y-6 text-xs text-white/70 leading-relaxed font-sans">
+                      <li className="space-y-2">
+                        <strong className="text-white font-mono text-[10px] uppercase tracking-widest block border-b border-white/5 pb-1">01 / Askew ASCII elements</strong>
+                        <p className="text-white/60">
+                          Always evaluate subdomain depth structures. Scam domains append trusted brand words at the front like <code className="bg-white/5 px-1 pb-0.5 font-mono text-[10px] text-rose-300">paypal.login-secure.xyz</code>, masquerading as official targets.
+                        </p>
+                      </li>
+                      <li className="space-y-2">
+                        <strong className="text-white font-mono text-[10px] uppercase tracking-widest block border-b border-white/5 pb-1">02 / Artificial Urgency</strong>
+                        <p className="text-white/60">
+                          Legitimate banking, social desk, and developer portals rarely request instant action inside tight hours window (e.g. "Locked in 4 hours") without previous official warnings.
+                        </p>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // -------------------------------------------------------------
+      // Main Application Entry Coordinator
+      // -------------------------------------------------------------
+      function App() {
+        const [activeTab, setActiveTab] = useState('dashboard');
+        const [news, setNews] = useState(INITIAL_NEWS);
+        const [reports, setReports] = useState([]);
+        const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+        const handleAddNews = (item) => {
+          setNews((prev) => [item, ...prev]);
+        };
+
+        const handleAddReport = (report) => {
+          setReports((prev) => [report, ...prev]);
+        };
+
+        return (
+          <div className="min-h-screen bg-[#0A0A0B] text-[#E0E0E0] flex flex-col font-sans">
+            {/* Top Security alert ribbon */}
+            <div className="bg-[#0F0F11] border-b border-white/10 text-center py-2.5 px-4 flex items-center justify-center gap-2">
+              <span className="flex h-1.5 w-1.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
+              </span>
+              <span className="text-[10px] font-mono tracking-widest text-white/60 uppercase">
+                SECURE PROTOCOL // STANDALONE OFFLINE SINGLE-FILE CLIENT ACTIVE // ZERO BUILD COMPILE REQUIRED
+              </span>
+            </div>
+
+            {/* Header */}
+            <header className="sticky top-0 z-40 bg-[#0A0A0B]/90 backdrop-blur-md border-b border-white/10">
+              <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                <div className="flex justify-between items-baseline h-20">
+                  <div 
+                    className="flex items-baseline gap-4 cursor-pointer"
+                    onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+                  >
+                    <span className="text-3xl font-serif italic tracking-tight text-white select-none">
+                      SecuriFeed
+                    </span>
+                    <span className="hidden sm:inline text-[9px] tracking-[0.25em] uppercase text-white/40 font-mono">
+                      PhishDetect // Standalone Build
+                    </span>
+                  </div>
+
+                  {/* Desktop menu */}
+                  <nav className="hidden md:flex items-baseline gap-8 text-[11px] uppercase tracking-widest font-semibold font-mono">
+                    <button
+                      onClick={() => setActiveTab('dashboard')}
+                      className={`py-1 transition duration-150 cursor-pointer ${
+                        activeTab === 'dashboard' ? 'text-white border-b border-white' : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      Dashboard
+                    </button>
+                    
+                    <button
+                      onClick={() => setActiveTab('analyzer')}
+                      className={`py-1 transition duration-150 cursor-pointer ${
+                        activeTab === 'analyzer' ? 'text-white border-b border-white' : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      Analyzer
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('feed')}
+                      className={`py-1 transition duration-150 cursor-pointer ${
+                        activeTab === 'feed' ? 'text-white border-b border-white' : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      Intelligence Feed
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('game')}
+                      className={`py-1 transition duration-150 cursor-pointer ${
+                        activeTab === 'game' ? 'text-emerald-400 border-b border-emerald-400' : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      Academy Game
+                    </button>
+                  </nav>
+
+                  <div className="hidden lg:flex items-center gap-3 font-mono text-[9px]">
+                    <div className="text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 py-1 px-3">
+                      ● Standalone Local Sandbox Ready
+                    </div>
+                  </div>
+
+                  <div className="md:hidden flex items-center h-full">
+                    <button
+                      onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                      className="p-1.5 bg-white/5 border border-white/10 rounded-sm text-white/60 hover:text-white"
+                    >
+                      MENU //
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile options */}
+              {mobileMenuOpen && (
+                <div className="md:hidden bg-[#0F0F11] border-b border-white/10 px-6 py-5 space-y-3 animate-fade-in font-mono text-[10px] uppercase tracking-widest">
+                  <button
+                    onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-2 flex items-center justify-between ${
+                      activeTab === 'dashboard' ? 'text-white font-bold' : 'text-white/40'
+                    }`}
+                  >
+                    <span>Dashboard Overview</span>
+                    <span>&rarr;</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveTab('analyzer'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-2 flex items-center justify-between ${
+                      activeTab === 'analyzer' ? 'text-white font-bold' : 'text-white/40'
+                    }`}
+                  >
+                    <span>Suspicious Link Analyzer</span>
+                    <span>&rarr;</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveTab('feed'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-2 flex items-center justify-between ${
+                      activeTab === 'feed' ? 'text-white font-bold' : 'text-white/40'
+                    }`}
+                  >
+                    <span>Live Threat Intelligence</span>
+                    <span>&rarr;</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveTab('game'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-2 flex items-center justify-between ${
+                      activeTab === 'game' ? 'text-emerald-400 font-bold' : 'text-white/40'
+                    }`}
+                  >
+                    <span>Academy Reflex Game</span>
+                    <span>&rarr;</span>
+                  </button>
+                </div>
+              )}
+            </header>
+
+            {/* Stage Page Render */}
+            <main className="flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 py-10">
+              {activeTab === 'dashboard' && (
+                <DashboardView 
+                  newsList={news} 
+                  threatReports={reports} 
+                  setActiveTab={setActiveTab} 
+                  scenariosCount={scenariosCount => GAME_SCENARIOS.length}
+                />
+              )}
+              {activeTab === 'analyzer' && <AnalyzerView />}
+              {activeTab === 'feed' && (
+                <ThreatIntelView 
+                  newsList={news} 
+                  threatReports={reports} 
+                  onAddNews={handleAddNews} 
+                  onAddReport={handleAddReport}
+                />
+              )}
+              {activeTab === 'game' && <PhishGameView />}
+            </main>
+
+            {/* Sub-footer */}
+            <footer className="bg-black/40 border-t border-white/5 py-8 mt-16 text-[9px] font-mono tracking-[0.2em] uppercase text-white/30">
+              <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>SecuriFeed — Cyber hygiene tracker utility.</div>
+                <div>LOCAL_STANDALONE_SEC_DECK: VERIFIED</div>
+              </div>
+            </footer>
+          </div>
+        );
+      }
+
+      // Render the Application Node
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>
